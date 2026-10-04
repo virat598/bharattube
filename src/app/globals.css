@@ -1,0 +1,344 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    /* Prevent iOS text inflation in landscape */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    /*
+      No horizontal scroll on small screens.
+      MUST be `clip`, not `hidden`: `overflow-x: hidden` turns <body> into a
+      scroll container, which breaks `position: sticky` (the watch-page player
+      would release early instead of staying pinned). `overflow-x: clip`
+      prevents sideways scroll WITHOUT creating a scroll container, so sticky
+      keeps working against the viewport.
+    */
+    overflow-x: clip;
+    line-height: 1.5;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  /* Keep motion minimal for people who prefer less animation */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Remove the grey flash on tap, keep our own :active states */
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS zooms the page when an input smaller than 16px is focused */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
+  /* Visible focus for keyboard users */
+  :focus-visible {
+    outline: 2px solid #ef4444;
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Safe-area helpers (notches, Android gesture bar, iOS home indicator) */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Height of the mobile bottom nav + the device safe area */
+  .pb-nav {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .bottom-nav {
+    bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+      Shorts viewing area
+      On the Shorts route the AppShell hides the top navbar (and adds no
+      top/bottom padding), so the ONLY chrome to subtract is the mobile
+      bottom navigation (h-14 = 3.5rem + the device safe area). Reserving
+      the old 7rem (which also counted a top header that no longer exists
+      here) left an empty black band below the video — this is that fix.
+      On desktop (md+) both the top navbar and the bottom nav are hidden on
+      Shorts, so the feed fills the full viewport height.
+      ───────────────────────────────────────────────────────────── */
+  .shorts-feed {
+    height: calc(100dvh - 3.5rem - env(safe-area-inset-bottom, 0px));
+    background: #000;
+  }
+  @media (min-width: 768px) {
+    .shorts-feed {
+      height: 100dvh;
+    }
+  }
+  /*
+    Every snap slide occupies exactly the feed height.
+
+    This is a DEFINITE height (not a percentage) on purpose: each slide is
+    wrapped by an anonymous div whose height is `auto`, and `height: 100%`
+    against an auto-height parent collapses to zero — which would stack every
+    Short on top of the first one.
+  */
+  .shorts-slide {
+    height: calc(100dvh - 3.5rem - env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    background: #000;
+  }
+  @media (min-width: 768px) {
+    .shorts-slide {
+      height: 100dvh;
+    }
+  }
+  /* 9:16 stage that never overflows its slide (no stretch, no crop spill) */
+  .shorts-stage {
+    height: 100%;
+    aspect-ratio: 9 / 16;
+    max-width: 100%;
+    background: #000;
+    overflow: hidden;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     Native fullscreen: fill the screen edge to edge, drop the
+     rounded corners/border and any letterboxing from the page.
+     ───────────────────────────────────────────────────────────── */
+  .bt-player:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+  }
+  .bt-player:fullscreen video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .bt-player:-webkit-full-screen {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+  }
+  .bt-player:-webkit-full-screen video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  /* iOS <video> fullscreen has no container element to style. */
+  video::-webkit-media-text-track-container {
+    max-width: 100%;
+  }
+
+  /* Page chrome must never peek around a fullscreened player. */
+  body.bt-player-fullscreen {
+    overflow: hidden;
+    background: #000;
+  }
+  body.bt-player-fullscreen nav,
+  body.bt-player-fullscreen header {
+    visibility: hidden;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     Shorts double-tap like feedback (single, restrained burst)
+     ───────────────────────────────────────────────────────────── */
+  @keyframes bt-heart-pop {
+    0% {
+      transform: scale(0.3) rotate(-8deg);
+      opacity: 0;
+    }
+    35% {
+      transform: scale(1.15) rotate(4deg);
+      opacity: 1;
+    }
+    60% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1.35) translateY(-18px);
+      opacity: 0;
+    }
+  }
+  .bt-heart-pop {
+    animation: bt-heart-pop 700ms ease-out forwards;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     Long-form double-tap seek ripple
+     ───────────────────────────────────────────────────────────── */
+  @keyframes bt-seek-ripple {
+    0% {
+      transform: scale(0.85);
+      opacity: 0;
+    }
+    25% {
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1.06);
+      opacity: 0;
+    }
+  }
+  .bt-seek-ripple {
+    animation: bt-seek-ripple 620ms ease-out forwards;
+  }
+
+  /*
+    Thin player range (volume). Replaces the browser-default thick
+    accent-colour track. The filled part comes from --bt-fill (0–100%).
+    A generous invisible hit area keeps it easy to use on touch screens.
+  */
+  .bt-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 16px; /* hit area */
+    background: transparent;
+    cursor: pointer;
+  }
+  .bt-range::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      to right,
+      #dc2626 0%,
+      #dc2626 var(--bt-fill, 0%),
+      rgba(255, 255, 255, 0.35) var(--bt-fill, 0%),
+      rgba(255, 255, 255, 0.35) 100%
+    );
+  }
+  .bt-range::-moz-range-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.35);
+  }
+  .bt-range::-moz-range-progress {
+    height: 3px;
+    border-radius: 9999px;
+    background: #dc2626;
+  }
+  .bt-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 11px;
+    height: 11px;
+    margin-top: -4px; /* centre on the 3px track */
+    border-radius: 9999px;
+    background: #fff;
+    border: 0;
+  }
+  .bt-range::-moz-range-thumb {
+    width: 11px;
+    height: 11px;
+    border-radius: 9999px;
+    background: #fff;
+    border: 0;
+  }
+
+  /* Thin YouTube-style Shorts progress bar */
+  .bt-shorts-track {
+    height: 2px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.32);
+    transition: height 140ms ease;
+  }
+  .bt-shorts-track[data-dragging="true"] {
+    height: 4px;
+  }
+
+  /* Comfortable minimum touch target (WCAG 2.5.5) */
+  .tap-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Vertical snap feed for Shorts */
+  .snap-y-mandatory {
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+  .snap-item {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  /* Dynamic viewport height — avoids mobile browser chrome jump */
+  .h-dvh {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .min-h-dvh {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+/* Custom subtle scrollbars (desktop only) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(113, 113, 122, 0.55);
+}
